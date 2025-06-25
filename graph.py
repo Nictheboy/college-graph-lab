@@ -1045,6 +1045,10 @@ class Graph:
         
         # 保存图像
         if save_path:
+            # 创建目录（如果不存在）
+            output_dir = os.path.dirname(save_path)
+            if output_dir and not os.path.exists(output_dir):
+                os.makedirs(output_dir)
             plt.savefig(save_path, dpi=300, bbox_inches='tight')
             print(f"Image saved to: {save_path}")
         
@@ -1121,6 +1125,10 @@ class Graph:
         
         # 保存图像
         if save_path:
+            # 创建目录（如果不存在）
+            output_dir = os.path.dirname(save_path)
+            if output_dir and not os.path.exists(output_dir):
+                os.makedirs(output_dir)
             plt.savefig(save_path, dpi=300, bbox_inches='tight')
             print(f"Image saved to: {save_path}")
         
@@ -1198,6 +1206,10 @@ class Graph:
         
         # 保存图像
         if save_path:
+            # 创建目录（如果不存在）
+            output_dir = os.path.dirname(save_path)
+            if output_dir and not os.path.exists(output_dir):
+                os.makedirs(output_dir)
             plt.savefig(save_path, dpi=300, bbox_inches='tight')
             print(f"Image saved to: {save_path}")
         
@@ -1275,6 +1287,10 @@ class Graph:
         
         # 保存图像
         if save_path:
+            # 创建目录（如果不存在）
+            output_dir = os.path.dirname(save_path)
+            if output_dir and not os.path.exists(output_dir):
+                os.makedirs(output_dir)
             plt.savefig(save_path, dpi=300, bbox_inches='tight')
             print(f"Image saved to: {save_path}")
         
@@ -1352,6 +1368,10 @@ class Graph:
         
         # 保存图像
         if save_path:
+            # 创建目录（如果不存在）
+            output_dir = os.path.dirname(save_path)
+            if output_dir and not os.path.exists(output_dir):
+                os.makedirs(output_dir)
             plt.savefig(save_path, dpi=300, bbox_inches='tight')
             print(f"Image saved to: {save_path}")
         
