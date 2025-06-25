@@ -126,6 +126,10 @@ class Graph:
         core_stats = self.get_core_statistics()
         stats.update(core_stats)
         
+        # 添加团统计信息
+        clique_stats = self.get_clique_statistics()
+        stats.update(clique_stats)
+        
         return stats
     
     def get_networkx_graph(self) -> nx.Graph:
@@ -493,3 +497,115 @@ class Graph:
                 return best_component
         
         return set(all_nodes) 
+
+    def get_k_cliques(self, k: int) -> list:
+        """
+        找到所有大小为k的极大团。
+        
+        Args:
+            k: 团的大小
+            
+        Returns:
+            包含所有大小为k的极大团的列表，每个团是一个节点列表
+        """
+        if k <= 0:
+            return []
+        
+        if self.graph.number_of_nodes() == 0:
+            return []
+        
+        # 使用NetworkX的find_cliques找到所有极大团
+        all_maximal_cliques = list(nx.find_cliques(self.graph))
+        
+        # 过滤出大小为k的极大团
+        k_cliques = list(filter(lambda clique: len(clique) == k, all_maximal_cliques))
+        
+        return k_cliques
+    
+    def get_all_cliques_of_size_k(self, k: int) -> list:
+        """
+        找到所有大小为k的团（包括非极大的）。
+        
+        Args:
+            k: 团的大小
+            
+        Returns:
+            包含所有大小为k的团的列表，每个团是一个节点列表
+        """
+        if k <= 0:
+            return []
+        
+        if self.graph.number_of_nodes() == 0:
+            return []
+        
+        # 使用NetworkX的enumerate_all_cliques按大小排序获取所有团
+        all_cliques = list(nx.enumerate_all_cliques(self.graph))
+        
+        # 过滤出大小为k的团
+        k_cliques = list(filter(lambda clique: len(clique) == k, all_cliques))
+        
+        return k_cliques
+    
+    def get_clique_statistics(self) -> dict:
+        """
+        获取图中团的统计信息。
+        
+        Returns:
+            包含团统计信息的字典
+        """
+        if self.graph.number_of_nodes() == 0:
+            return {
+                'total_maximal_cliques': 0,
+                'largest_clique_size': 0,
+                'clique_number': 0,
+                'clique_size_distribution': {}
+            }
+        
+        # 获取所有极大团
+        maximal_cliques = list(nx.find_cliques(self.graph))
+        
+        # 统计信息
+        total_maximal_cliques = len(maximal_cliques)
+        
+        # 计算团大小分布，避免使用for循环
+        clique_sizes = list(map(len, maximal_cliques))
+        
+        largest_clique_size = max(clique_sizes) if clique_sizes else 0
+        clique_number = largest_clique_size  # 团数等于最大团的大小
+        
+        # 使用Counter计算大小分布
+        from collections import Counter
+        size_distribution = dict(Counter(clique_sizes))
+        
+        return {
+            'total_maximal_cliques': total_maximal_cliques,
+            'largest_clique_size': largest_clique_size,
+            'clique_number': clique_number,
+            'clique_size_distribution': size_distribution
+        }
+    
+    def find_cliques_containing_nodes(self, nodes: list) -> list:
+        """
+        找到包含指定节点集合的所有极大团。
+        
+        Args:
+            nodes: 节点列表
+            
+        Returns:
+            包含所有包含指定节点的极大团的列表
+        """
+        if not nodes or self.graph.number_of_nodes() == 0:
+            return []
+        
+        # 检查所有指定节点是否都在图中
+        nodes_set = set(nodes)
+        if not nodes_set.issubset(set(self.graph.nodes())):
+            return []
+        
+        # 使用NetworkX的find_cliques，传入nodes参数
+        try:
+            cliques_with_nodes = list(nx.find_cliques(self.graph, nodes=nodes))
+            return cliques_with_nodes
+        except ValueError:
+            # 如果nodes本身不构成一个团，返回空列表
+            return [] 

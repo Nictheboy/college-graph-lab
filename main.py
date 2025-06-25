@@ -57,6 +57,12 @@ def main():
             print(f"  core数中位数: {stats['median_core_number']:.2f}")
             print(f"  core分布: {stats['core_distribution']}")
             
+            # 添加团统计信息
+            print(f"  极大团总数: {stats['total_maximal_cliques']}")
+            print(f"  最大团大小: {stats['largest_clique_size']}")
+            print(f"  团数: {stats['clique_number']}")
+            print(f"  团大小分布: {stats['clique_size_distribution']}")
+            
             # 测试k-core分解功能
             print("  === K-Core 分解测试 ===")
             
@@ -74,6 +80,33 @@ def main():
                 k_core_stats = k_core.get_stats()
                 print(f"  {test_k}-core节点数: {k_core_stats['nodes']}")
                 print(f"  {test_k}-core边数: {k_core_stats['edges']}")
+            
+            # 测试k-clique分解功能
+            print("  === K-Clique 分解测试 ===")
+            
+            # 测试不同k值的k-clique
+            max_clique_size = stats['largest_clique_size']
+            if max_clique_size > 0:
+                # 测试k=3的团（如果存在）
+                if max_clique_size >= 3:
+                    k3_cliques = g.get_k_cliques(3)
+                    print(f"  大小为3的极大团数量: {len(k3_cliques)}")
+                    if len(k3_cliques) > 0:
+                        print(f"  前5个3-团: {k3_cliques[:5]}")
+                
+                # 测试最大团大小的团
+                max_k_cliques = g.get_k_cliques(max_clique_size)
+                print(f"  最大团(大小为{max_clique_size})数量: {len(max_k_cliques)}")
+                if len(max_k_cliques) > 0:
+                    print(f"  最大团示例: {max_k_cliques[0]}")
+                
+                # 测试包含所有团的情况（对小图）
+                if stats['nodes'] <= 20:  # 只对小图运行
+                    k2_all_cliques = g.get_all_cliques_of_size_k(2)
+                    print(f"  大小为2的所有团数量: {len(k2_all_cliques)}")
+                    
+            else:
+                print("  图中没有团")
             
             # 测试最密子图算法
             print("  === 最密子图算法测试 ===")
@@ -135,6 +168,29 @@ def main():
     stats = test_graph.get_stats()
     print(f"节点数: {stats['nodes']}")
     print(f"边数: {stats['edges']}")
+    
+    # 测试k-clique分解功能
+    print("=== 测试图K-Clique分解测试 ===")
+    
+    # 获取团统计信息
+    clique_stats = test_graph.get_clique_statistics()
+    print(f"极大团总数: {clique_stats['total_maximal_cliques']}")
+    print(f"最大团大小: {clique_stats['largest_clique_size']}")
+    print(f"团数: {clique_stats['clique_number']}")
+    print(f"团大小分布: {clique_stats['clique_size_distribution']}")
+    
+    # 测试具体的k-clique
+    if clique_stats['largest_clique_size'] >= 3:
+        k3_cliques = test_graph.get_k_cliques(3)
+        print(f"大小为3的极大团: {k3_cliques}")
+        
+        # 测试包含所有团
+        k3_all_cliques = test_graph.get_all_cliques_of_size_k(3)
+        print(f"大小为3的所有团: {k3_all_cliques}")
+    
+    # 测试包含特定节点的团
+    containing_cliques = test_graph.find_cliques_containing_nodes([1, 2])
+    print(f"包含节点[1,2]的极大团: {containing_cliques}")
     
     # 测试最密子图算法
     print("=== 测试图最密子图算法测试 ===")
