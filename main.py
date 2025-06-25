@@ -319,6 +319,109 @@ def main():
     reloaded_stats = reloaded_graph.get_stats()
     print(f"重新加载的图 - 节点数: {reloaded_stats['nodes']}, 边数: {reloaded_stats['edges']}")
     
+    print("\n=== 图的可视化测试 ===")
+    
+    # 测试基础可视化
+    print("Testing basic visualization...")
+    test_graph.visualize(
+        title="Test Graph - Basic Visualization",
+        save_path=os.path.join(output_dir, "test_graph_basic.png"),
+        show=False  # 设置为False避免在无显示环境中出错
+    )
+    
+    # 测试带标签的可视化
+    print("Testing visualization with labels...")
+    test_graph.visualize_with_node_labels(
+        title="Test Graph - Visualization with Labels",
+        save_path=os.path.join(output_dir, "test_graph_labels.png"),
+        show=False
+    )
+    
+    # 测试基于度数的可视化
+    print("Testing degree-based visualization...")
+    test_graph.visualize_by_degree(
+        title="Test Graph - Degree-based Visualization",
+        save_path=os.path.join(output_dir, "test_graph_degree.png"),
+        show=False
+    )
+    
+    # 测试基于core number的可视化
+    print("Testing core number-based visualization...")
+    test_graph.visualize_by_core_number(
+        title="Test Graph - Core Number-based Visualization",
+        save_path=os.path.join(output_dir, "test_graph_core.png"),
+        show=False
+    )
+    
+    # 测试子图可视化（高亮特定节点）
+    print("Testing subgraph visualization...")
+    highlight_nodes = [1, 2, 3]  # 高亮一些节点
+    test_graph.visualize_subgraph(
+        nodes=highlight_nodes,
+        title="Test Graph - Subgraph Visualization",
+        save_path=os.path.join(output_dir, "test_graph_subgraph.png"),
+        show=False
+    )
+    
+    # 对于小的数据集，也进行可视化测试
+    print("\n=== 数据集可视化测试 ===")
+    
+    # 使用Amazon数据集进行可视化测试（如果文件存在且不太大）
+    amazon_file = "data/Amazon.txt"
+    if os.path.exists(amazon_file):
+        print(f"测试 {amazon_file} 的可视化...")
+        try:
+            amazon_graph = Graph(amazon_file)
+            amazon_stats = amazon_graph.get_stats()
+            
+            # 只对较小的图进行可视化
+            if amazon_stats['nodes'] <= 500:
+                print(f"Amazon graph has {amazon_stats['nodes']} nodes, performing visualization...")
+                
+                # 基础可视化
+                amazon_graph.visualize(
+                    title=f"Amazon Graph - Basic Visualization ({amazon_stats['nodes']} nodes)",
+                    save_path=os.path.join(output_dir, "amazon_basic.png"),
+                    show=False,
+                    node_size=10  # 较小的节点避免重叠
+                )
+                
+                # 基于度数的可视化
+                amazon_graph.visualize_by_degree(
+                    title=f"Amazon Graph - Degree-based Visualization ({amazon_stats['nodes']} nodes)",
+                    save_path=os.path.join(output_dir, "amazon_degree.png"),
+                    show=False
+                )
+                
+                # 基于core number的可视化
+                amazon_graph.visualize_by_core_number(
+                    title=f"Amazon Graph - Core Number-based Visualization ({amazon_stats['nodes']} nodes)",
+                    save_path=os.path.join(output_dir, "amazon_core.png"),
+                    show=False
+                )
+                
+                # 可视化main core
+                main_core = amazon_graph.get_main_core()
+                main_core_nodes = list(main_core.get_networkx_graph().nodes())
+                if main_core_nodes:
+                    amazon_graph.visualize_subgraph(
+                        nodes=main_core_nodes,
+                        title=f"Amazon Graph - Main Core Visualization ({len(main_core_nodes)} nodes)",
+                        save_path=os.path.join(output_dir, "amazon_main_core.png"),
+                        show=False,
+                        highlight_color='red',
+                        node_size=15
+                    )
+                
+            else:
+                print(f"Amazon graph has too many nodes ({amazon_stats['nodes']}), skipping visualization")
+                
+        except Exception as e:
+            print(f"Amazon graph visualization test error: {str(e)}")
+    
+    print("\nVisualization tests completed!")
+    print("All visualization images have been saved to the output directory")
+    
     print("\n测试完成！")
 
 

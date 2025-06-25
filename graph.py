@@ -6,6 +6,8 @@ import networkx as nx
 from typing import Optional, Union
 import os
 import numpy as np
+import matplotlib.pyplot as plt
+from matplotlib.colors import LinearSegmentedColormap
 
 
 class Graph:
@@ -971,10 +973,390 @@ class Graph:
         densities = [lds[1] for lds in top_lds]
         sizes = [lds[0].get_networkx_graph().number_of_nodes() for lds in top_lds]
         
+        average_density = float(np.mean(densities))
+        max_density = float(np.max(densities))
+        min_density = float(np.min(densities))
+        average_size = float(np.mean(sizes))
+        
         return {
             'total_lds_found': len(top_lds),
-            'average_lds_density': float(np.mean(densities)),
-            'max_lds_density': float(np.max(densities)),
-            'min_lds_density': float(np.min(densities)),
-            'average_lds_size': float(np.mean(sizes))
-        } 
+            'average_lds_density': average_density,
+            'max_lds_density': max_density,
+            'min_lds_density': min_density,
+            'average_lds_size': average_size
+        }
+
+    def visualize(self, layout: str = 'spring', 
+                  node_size: int = 20, 
+                  node_color: str = 'lightblue',
+                  edge_color: str = 'gray',
+                  title: str = 'Graph Visualization',
+                  save_path: Optional[str] = None,
+                  show: bool = True,
+                  figsize: tuple = (12, 8),
+                  **kwargs) -> None:
+        """
+        Visualize graph structure.
+        
+        Args:
+            layout: Layout algorithm ('spring', 'circular', 'random', 'shell', 'kamada_kawai')
+            node_size: Node size
+            node_color: Node color
+            edge_color: Edge color  
+            title: Graph title
+            save_path: Save path, saves image if provided
+            show: Whether to display image
+            figsize: Figure size
+            **kwargs: Additional parameters passed to layout algorithm
+        """
+        if self.graph.number_of_nodes() == 0:
+            print("Graph is empty, cannot visualize")
+            return
+            
+        # 创建图形
+        plt.figure(figsize=figsize)
+        
+        # 选择布局算法
+        layout_functions = {
+            'spring': nx.spring_layout,
+            'circular': nx.circular_layout,
+            'random': nx.random_layout,
+            'shell': nx.shell_layout,
+            'kamada_kawai': nx.kamada_kawai_layout
+        }
+        
+        if layout not in layout_functions:
+            print(f"Unsupported layout: {layout}, using default spring layout")
+            layout = 'spring'
+            
+        # 计算节点位置
+        pos = layout_functions[layout](self.graph, **kwargs)
+        
+        # 绘制图
+        nx.draw(self.graph, pos=pos, 
+                node_size=node_size,
+                node_color=node_color,
+                edge_color=edge_color,
+                with_labels=False,
+                alpha=0.7)
+        
+        plt.title(title)
+        plt.axis('off')
+        
+        # 保存图像
+        if save_path:
+            plt.savefig(save_path, dpi=300, bbox_inches='tight')
+            print(f"Image saved to: {save_path}")
+        
+        # 显示图像
+        if show:
+            plt.show()
+        else:
+            plt.close()
+
+    def visualize_with_node_labels(self, layout: str = 'spring',
+                                   node_size: int = 300,
+                                   node_color: str = 'lightblue',
+                                   edge_color: str = 'gray',
+                                   title: str = 'Graph Visualization with Labels',
+                                   save_path: Optional[str] = None,
+                                   show: bool = True,
+                                   figsize: tuple = (12, 8),
+                                   max_nodes: int = 100,
+                                   **kwargs) -> None:
+        """
+        Visualize graph with node labels.
+        
+        Args:
+            layout: Layout algorithm
+            node_size: Node size
+            node_color: Node color
+            edge_color: Edge color
+            title: Graph title
+            save_path: Save path
+            show: Whether to display image
+            figsize: Figure size
+            max_nodes: Maximum number of nodes to display (avoid too many labels)
+            **kwargs: Additional parameters passed to layout algorithm
+        """
+        if self.graph.number_of_nodes() == 0:
+            print("Graph is empty, cannot visualize")
+            return
+            
+        if self.graph.number_of_nodes() > max_nodes:
+            print(f"Too many nodes ({self.graph.number_of_nodes()}), recommend using visualization without labels")
+            return
+            
+        # 创建图形
+        plt.figure(figsize=figsize)
+        
+        # 选择布局算法
+        layout_functions = {
+            'spring': nx.spring_layout,
+            'circular': nx.circular_layout,
+            'random': nx.random_layout,
+            'shell': nx.shell_layout,
+            'kamada_kawai': nx.kamada_kawai_layout
+        }
+        
+        if layout not in layout_functions:
+            print(f"Unsupported layout: {layout}, using default spring layout")
+            layout = 'spring'
+            
+        # 计算节点位置
+        pos = layout_functions[layout](self.graph, **kwargs)
+        
+        # 绘制图
+        nx.draw(self.graph, pos=pos,
+                node_size=node_size,
+                node_color=node_color,
+                edge_color=edge_color,
+                with_labels=True,
+                font_size=8,
+                font_weight='bold',
+                alpha=0.7)
+        
+        plt.title(title)
+        plt.axis('off')
+        
+        # 保存图像
+        if save_path:
+            plt.savefig(save_path, dpi=300, bbox_inches='tight')
+            print(f"Image saved to: {save_path}")
+        
+        # 显示图像
+        if show:
+            plt.show()
+        else:
+            plt.close()
+
+    def visualize_by_degree(self, layout: str = 'spring',
+                            title: str = 'Graph Visualization by Degree',
+                            save_path: Optional[str] = None,
+                            show: bool = True,
+                            figsize: tuple = (12, 8),
+                            **kwargs) -> None:
+        """
+        Visualization based on node degree, higher degree nodes are larger and darker.
+        
+        Args:
+            layout: Layout algorithm
+            title: Graph title
+            save_path: Save path
+            show: Whether to display image
+            figsize: Figure size
+            **kwargs: Additional parameters passed to layout algorithm
+        """
+        if self.graph.number_of_nodes() == 0:
+            print("Graph is empty, cannot visualize")
+            return
+            
+        # 创建图形
+        plt.figure(figsize=figsize)
+        
+        # 选择布局算法
+        layout_functions = {
+            'spring': nx.spring_layout,
+            'circular': nx.circular_layout,
+            'random': nx.random_layout,
+            'shell': nx.shell_layout,
+            'kamada_kawai': nx.kamada_kawai_layout
+        }
+        
+        if layout not in layout_functions:
+            print(f"Unsupported layout: {layout}, using default spring layout")
+            layout = 'spring'
+            
+        # 计算节点位置
+        pos = layout_functions[layout](self.graph, **kwargs)
+        
+        # 获取度数信息
+        degrees = dict(self.graph.degree())
+        node_list = list(self.graph.nodes())
+        degree_values = [degrees[node] for node in node_list]
+        max_degree = max(degree_values) if degree_values else 1
+        
+        # 计算节点大小（基于度数）
+        node_sizes = [20 + (degree * 100 / max_degree) for degree in degree_values]
+        
+        # 绘制图
+        nodes = nx.draw_networkx_nodes(self.graph, pos=pos,
+                                      node_size=node_sizes,
+                                      node_color=degree_values,
+                                      cmap=plt.cm.viridis,
+                                      alpha=0.8)
+        
+        nx.draw_networkx_edges(self.graph, pos=pos,
+                              edge_color='gray',
+                              alpha=0.3)
+        
+        # 添加颜色条
+        plt.colorbar(nodes, label='Degree')
+        
+        plt.title(title)
+        plt.axis('off')
+        
+        # 保存图像
+        if save_path:
+            plt.savefig(save_path, dpi=300, bbox_inches='tight')
+            print(f"Image saved to: {save_path}")
+        
+        # 显示图像
+        if show:
+            plt.show()
+        else:
+            plt.close()
+
+    def visualize_by_core_number(self, layout: str = 'spring',
+                                 title: str = 'Graph Visualization by Core Number',
+                                 save_path: Optional[str] = None,
+                                 show: bool = True,
+                                 figsize: tuple = (12, 8),
+                                 **kwargs) -> None:
+        """
+        Visualization based on node core number.
+        
+        Args:
+            layout: Layout algorithm
+            title: Graph title
+            save_path: Save path
+            show: Whether to display image
+            figsize: Figure size
+            **kwargs: Additional parameters passed to layout algorithm
+        """
+        if self.graph.number_of_nodes() == 0:
+            print("Graph is empty, cannot visualize")
+            return
+            
+        # 创建图形
+        plt.figure(figsize=figsize)
+        
+        # 选择布局算法
+        layout_functions = {
+            'spring': nx.spring_layout,
+            'circular': nx.circular_layout,
+            'random': nx.random_layout,
+            'shell': nx.shell_layout,
+            'kamada_kawai': nx.kamada_kawai_layout
+        }
+        
+        if layout not in layout_functions:
+            print(f"Unsupported layout: {layout}, using default spring layout")
+            layout = 'spring'
+            
+        # 计算节点位置
+        pos = layout_functions[layout](self.graph, **kwargs)
+        
+        # 获取core number信息
+        core_numbers = nx.core_number(self.graph)
+        node_list = list(self.graph.nodes())
+        core_values = [core_numbers[node] for node in node_list]
+        max_core = max(core_values) if core_values else 1
+        
+        # 计算节点大小（基于core number）
+        node_sizes = [20 + (core * 100 / max_core) for core in core_values]
+        
+        # 绘制图
+        nodes = nx.draw_networkx_nodes(self.graph, pos=pos,
+                                      node_size=node_sizes,
+                                      node_color=core_values,
+                                      cmap=plt.cm.plasma,
+                                      alpha=0.8)
+        
+        nx.draw_networkx_edges(self.graph, pos=pos,
+                              edge_color='gray',
+                              alpha=0.3)
+        
+        # 添加颜色条
+        plt.colorbar(nodes, label='Core Number')
+        
+        plt.title(title)
+        plt.axis('off')
+        
+        # 保存图像
+        if save_path:
+            plt.savefig(save_path, dpi=300, bbox_inches='tight')
+            print(f"Image saved to: {save_path}")
+        
+        # 显示图像
+        if show:
+            plt.show()
+        else:
+            plt.close()
+
+    def visualize_subgraph(self, nodes: list,
+                          layout: str = 'spring',
+                          node_size: int = 100,
+                          highlight_color: str = 'red',
+                          other_color: str = 'lightblue',
+                          edge_color: str = 'gray',
+                          title: str = 'Subgraph Visualization',
+                          save_path: Optional[str] = None,
+                          show: bool = True,
+                          figsize: tuple = (12, 8),
+                          **kwargs) -> None:
+        """
+        Visualize subgraph formed by specified nodes.
+        
+        Args:
+            nodes: List of nodes to highlight
+            layout: Layout algorithm
+            node_size: Node size
+            highlight_color: Color for highlighted nodes
+            other_color: Color for other nodes
+            edge_color: Edge color
+            title: Graph title
+            save_path: Save path
+            show: Whether to display image
+            figsize: Figure size
+            **kwargs: Additional parameters passed to layout algorithm
+        """
+        if self.graph.number_of_nodes() == 0:
+            print("Graph is empty, cannot visualize")
+            return
+            
+        # 创建图形
+        plt.figure(figsize=figsize)
+        
+        # 选择布局算法
+        layout_functions = {
+            'spring': nx.spring_layout,
+            'circular': nx.circular_layout,
+            'random': nx.random_layout,
+            'shell': nx.shell_layout,
+            'kamada_kawai': nx.kamada_kawai_layout
+        }
+        
+        if layout not in layout_functions:
+            print(f"Unsupported layout: {layout}, using default spring layout")
+            layout = 'spring'
+            
+        # 计算节点位置
+        pos = layout_functions[layout](self.graph, **kwargs)
+        
+        # 创建节点颜色列表，使用map函数避免for循环
+        node_list = list(self.graph.nodes())
+        color_map_func = lambda node: highlight_color if node in nodes else other_color
+        node_colors = list(map(color_map_func, node_list))
+        
+        # 绘制图
+        nx.draw(self.graph, pos=pos,
+                node_size=node_size,
+                node_color=node_colors,
+                edge_color=edge_color,
+                with_labels=False,
+                alpha=0.7)
+        
+        plt.title(f"{title} (Highlighted nodes: {len(nodes)})")
+        plt.axis('off')
+        
+        # 保存图像
+        if save_path:
+            plt.savefig(save_path, dpi=300, bbox_inches='tight')
+            print(f"Image saved to: {save_path}")
+        
+        # 显示图像
+        if show:
+            plt.show()
+        else:
+            plt.close() 
