@@ -103,10 +103,15 @@ class Graph:
         Returns:
             包含图统计信息的字典
         """
+        # 处理空图的情况
+        is_connected = False
+        if self.graph.number_of_nodes() > 0:
+            is_connected = nx.is_connected(self.graph)
+        
         stats = {
             'nodes': self.graph.number_of_nodes(),
             'edges': self.graph.number_of_edges(),
-            'is_connected': nx.is_connected(self.graph),
+            'is_connected': is_connected,
             'density': self.get_density(),
             'average_degree': self.get_average_degree(),
             'number_of_components': self.get_number_of_components(),
@@ -116,6 +121,10 @@ class Graph:
         # 添加度统计信息
         degree_stats = self.get_degree_statistics()
         stats.update(degree_stats)
+        
+        # 添加k-core统计信息
+        core_stats = self.get_core_statistics()
+        stats.update(core_stats)
         
         return stats
     
@@ -167,8 +176,9 @@ class Graph:
             }
         
         # 使用 NetworkX 的度序列函数，避免使用 for 循环
-        degrees = [d for n, d in self.graph.degree()]
-        degrees_array = np.array(degrees)
+        # 直接获取度序列并转换为numpy数组
+        degree_dict = dict(self.graph.degree())
+        degrees_array = np.array(list(degree_dict.values()))
         
         return {
             'min_degree': int(np.min(degrees_array)),
@@ -199,4 +209,90 @@ class Graph:
         
         # 使用 NetworkX 的连通分量函数
         largest_cc = max(nx.connected_components(self.graph), key=len)
-        return len(largest_cc) 
+        return len(largest_cc)
+    
+    def get_core_numbers(self) -> dict:
+        """
+        计算图中每个节点的coreness值（k-core分解）。
+        
+        节点的coreness是指该节点所属的最大k-core的k值。
+        k-core是一个最大子图，其中每个节点的度数至少为k。
+        
+        Returns:
+            字典，键为节点ID，值为该节点的coreness值
+        """
+        # 使用NetworkX的core_number函数，避免手动循环
+        return nx.core_number(self.graph)
+    
+    def get_k_core(self, k: int) -> 'Graph':
+        """
+        获取图的k-core子图。
+        
+        k-core是一个最大子图，其中每个节点的度数至少为k。
+        
+        Args:
+            k: core的阶数
+            
+        Returns:
+            包含k-core的新Graph对象
+        """
+        # 使用NetworkX的k_core函数获取k-core子图
+        k_core_subgraph = nx.k_core(self.graph, k)
+        
+        # 创建新的Graph对象并设置其NetworkX图
+        result_graph = Graph()
+        result_graph.graph = k_core_subgraph
+        
+        return result_graph
+    
+    def get_core_statistics(self) -> dict:
+        """
+        获取k-core分解的统计信息。
+        
+        Returns:
+            包含core统计信息的字典
+        """
+        if self.graph.number_of_nodes() == 0:
+            return {
+                'max_core_number': 0,
+                'min_core_number': 0,
+                'mean_core_number': 0.0,
+                'std_core_number': 0.0,
+                'median_core_number': 0.0,
+                'core_distribution': {}
+            }
+        
+        # 获取所有节点的coreness值
+        core_numbers = self.get_core_numbers()
+        core_values = np.array(list(core_numbers.values()))
+        
+        # 计算core分布 - 使用numpy的unique函数避免手动循环
+        unique_cores, counts = np.unique(core_values, return_counts=True)
+        core_distribution = dict(zip(unique_cores.astype(int), counts.astype(int)))
+        
+        return {
+            'max_core_number': int(np.max(core_values)),
+            'min_core_number': int(np.min(core_values)),
+            'mean_core_number': float(np.mean(core_values)),
+            'std_core_number': float(np.std(core_values)),
+            'median_core_number': float(np.median(core_values)),
+            'core_distribution': core_distribution
+        }
+    
+    def get_main_core(self) -> 'Graph':
+        """
+        获取图的主core（最大core）。
+        
+        主core是具有最大k值的k-core。
+        
+        Returns:
+            包含主core的新Graph对象
+        """
+        # 使用NetworkX的k_core函数，不指定k参数时返回主core
+        main_core_subgraph = nx.k_core(self.graph)
+        
+        # 创建新的Graph对象并设置其NetworkX图
+        result_graph = Graph()
+        result_graph.graph = main_core_subgraph
+        
+        return result_graph 

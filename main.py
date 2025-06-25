@@ -48,6 +48,32 @@ def main():
             print(f"  度的标准差: {stats['std_degree']:.2f}")
             print(f"  度的中位数: {stats['median_degree']:.2f}")
             
+            # 添加k-core统计信息
+            print(f"  最大core数: {stats['max_core_number']}")
+            print(f"  最小core数: {stats['min_core_number']}")
+            print(f"  core数均值: {stats['mean_core_number']:.2f}")
+            print(f"  core数标准差: {stats['std_core_number']:.2f}")
+            print(f"  core数中位数: {stats['median_core_number']:.2f}")
+            print(f"  core分布: {stats['core_distribution']}")
+            
+            # 测试k-core分解功能
+            print("  === K-Core 分解测试 ===")
+            
+            # 获取主core
+            main_core = g.get_main_core()
+            main_core_stats = main_core.get_stats()
+            print(f"  主core节点数: {main_core_stats['nodes']}")
+            print(f"  主core边数: {main_core_stats['edges']}")
+            
+            # 测试不同k值的k-core
+            max_k = stats['max_core_number']
+            if max_k > 0:
+                test_k = min(3, max_k)  # 测试k=3或最大k值（如果小于3）
+                k_core = g.get_k_core(test_k)
+                k_core_stats = k_core.get_stats()
+                print(f"  {test_k}-core节点数: {k_core_stats['nodes']}")
+                print(f"  {test_k}-core边数: {k_core_stats['edges']}")
+            
             # 保存图到输出目录
             base_name = os.path.splitext(os.path.basename(data_file))[0]
             output_path = os.path.join(output_dir, f"{base_name}_output.txt")
