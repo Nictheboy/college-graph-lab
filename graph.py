@@ -296,3 +296,200 @@ class Graph:
         result_graph.graph = main_core_subgraph
         
         return result_graph 
+
+    def get_densest_subgraph_exact(self) -> 'Graph':
+        """
+        使用精确算法求解最密子图问题。
+        基于最大流技术和二分搜索。
+        
+        Returns:
+            最密子图
+        """
+        if self.graph.number_of_nodes() == 0:
+            return Graph()
+        
+        # 使用NetworkX内置的精确算法
+        # 这个算法基于最大流技术
+        densest_nodes = self._exact_densest_subgraph()
+        
+        # 创建结果图
+        result = Graph()
+        result.graph = self.graph.subgraph(densest_nodes).copy()
+        
+        return result
+    
+    def _exact_densest_subgraph(self) -> set:
+        """
+        使用二分搜索和最大流求解精确最密子图。
+        
+        Returns:
+            最密子图的节点集合
+        """
+        # 获取所有节点
+        nodes = list(self.graph.nodes())
+        if not nodes:
+            return set()
+        
+        # 获取度数的上界作为密度的上界
+        max_degree = max(dict(self.graph.degree()).values()) if nodes else 0
+        
+        # 二分搜索密度
+        low, high = 0.0, float(max_degree)
+        best_nodes = set(nodes)
+        epsilon = 1.0 / (len(nodes) * (len(nodes) - 1)) if len(nodes) > 1 else 0.001
+        
+        # 使用递归方式实现二分搜索
+        def binary_search_recursive(low_val, high_val, current_best, depth=0):
+            if high_val - low_val <= epsilon or depth > 50:  # 限制深度防止无限递归
+                return current_best
+            
+            mid = (low_val + high_val) / 2.0
+            cut_nodes = self._solve_max_flow_for_density(mid)
+            
+            if cut_nodes:
+                # 更新最优解
+                return binary_search_recursive(mid, high_val, cut_nodes, depth + 1)
+            else:
+                return binary_search_recursive(low_val, mid, current_best, depth + 1)
+        
+        best_nodes = binary_search_recursive(low, high, best_nodes)
+        
+        return best_nodes
+    
+    def _solve_max_flow_for_density(self, target_density: float) -> Optional[set]:
+        """
+        为给定密度构建流网络并求解最大流。
+        
+        Args:
+            target_density: 目标密度
+            
+        Returns:
+            满足密度要求的节点集合，如果不存在则返回None
+        """
+        # 构建有向图作为流网络
+        flow_graph = nx.DiGraph()
+        
+        # 添加源点和汇点
+        source = 'SOURCE'
+        sink = 'SINK'
+        flow_graph.add_node(source)
+        flow_graph.add_node(sink)
+        
+        # 获取所有节点和度数
+        nodes = list(self.graph.nodes())
+        degrees = dict(self.graph.degree())
+        
+        # 批量添加源点到节点的边
+        source_edges = [(source, node, {'capacity': degrees[node]}) for node in nodes]
+        flow_graph.add_edges_from(source_edges)
+        
+        # 批量添加节点到汇点的边
+        sink_edges = [(node, sink, {'capacity': 2 * target_density}) for node in nodes]
+        flow_graph.add_edges_from(sink_edges)
+        
+        # 批量添加原图边（双向）
+        edges = list(self.graph.edges())
+        graph_edges = [(u, v, {'capacity': 1}) for u, v in edges] + \
+                     [(v, u, {'capacity': 1}) for u, v in edges]
+        flow_graph.add_edges_from(graph_edges)
+        
+        # 求解最大流
+        try:
+            flow_value, flow_dict = nx.maximum_flow(flow_graph, source, sink)
+            
+            # 计算最小割
+            cut_value, (reachable, non_reachable) = nx.minimum_cut(flow_graph, source, sink)
+            
+            # 从源点可达的节点（除了源点本身）
+            result_nodes = set(reachable) & set(self.graph.nodes())
+            
+            # 检查是否满足密度要求
+            if result_nodes:
+                subgraph = self.graph.subgraph(result_nodes)
+                density = subgraph.number_of_edges() / len(result_nodes) if result_nodes else 0
+                if density >= target_density:
+                    return result_nodes
+            
+            return None
+        except:
+            return None 
+
+    def get_densest_subgraph_approx(self) -> 'Graph':
+        """
+        使用2-近似算法求解最密子图问题。
+        基于peeling技术，保证结果密度至少是最优解的一半。
+        
+        Returns:
+            2-近似最密子图
+        """
+        if self.graph.number_of_nodes() == 0:
+            return Graph()
+        
+        # 使用peeling算法
+        densest_nodes = self._peeling_algorithm()
+        
+        # 创建结果图
+        result = Graph()
+        result.graph = self.graph.subgraph(densest_nodes).copy()
+        
+        return result
+    
+    def _peeling_algorithm(self) -> set:
+        """
+        使用peeling算法找到2-近似最密子图。
+        基于k-core分解实现，避免显式循环。
+        
+        Returns:
+            具有最大密度的子图节点集合
+        """
+        all_nodes = list(self.graph.nodes())
+        if not all_nodes:
+            return set()
+        
+        # 使用核心分解找到不同密度的子图
+        core_numbers = nx.core_number(self.graph)
+        if not core_numbers:
+            return set(all_nodes)
+        
+        max_core = max(core_numbers.values())
+        
+        # 使用列表推导式和map函数替代循环
+        k_values = list(range(max_core + 1))
+        
+        # 使用map和filter来避免显式循环
+        # 创建所有k-core子图
+        create_k_core = lambda k: (k, self.graph.subgraph({node for node, core in core_numbers.items() if core >= k}))
+        k_core_subgraphs = list(map(create_k_core, k_values))
+        
+        # 过滤出非空子图并计算密度
+        def process_subgraph(k_subgraph_pair):
+            k, subgraph = k_subgraph_pair
+            if subgraph.number_of_nodes() > 0:
+                density = subgraph.number_of_edges() / subgraph.number_of_nodes()
+                return (k, subgraph, density)
+            return None
+        
+        valid_subgraphs = list(filter(None, map(process_subgraph, k_core_subgraphs)))
+        
+        # 找到最大密度的子图
+        if valid_subgraphs:
+            best_k, best_subgraph, best_density = max(valid_subgraphs, key=lambda x: x[2])
+            return set(best_subgraph.nodes())
+        
+        # 如果k-core没有找到好的结果，检查连通分量
+        components = list(nx.connected_components(self.graph))
+        if components:
+            # 使用map计算每个连通分量的密度
+            def calc_component_density(component):
+                if len(component) > 0:
+                    density = self.graph.subgraph(component).number_of_edges() / len(component)
+                    return (component, density)
+                return None
+            
+            component_densities = list(filter(None, map(calc_component_density, components)))
+            
+            if component_densities:
+                best_component, _ = max(component_densities, key=lambda x: x[1])
+                return best_component
+        
+        return set(all_nodes) 

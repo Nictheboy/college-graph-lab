@@ -22,10 +22,11 @@ def main():
     # 输出目录
     output_dir = "output"
     
-    for data_file in data_files:
+    # 使用map函数处理数据文件，避免for循环
+    def process_data_file(data_file):
         if not os.path.exists(data_file):
             print(f"跳过文件 {data_file}（文件不存在）")
-            continue
+            return None
             
         print(f"正在处理文件: {data_file}")
         
@@ -74,6 +75,41 @@ def main():
                 print(f"  {test_k}-core节点数: {k_core_stats['nodes']}")
                 print(f"  {test_k}-core边数: {k_core_stats['edges']}")
             
+            # 测试最密子图算法
+            print("  === 最密子图算法测试 ===")
+            
+            # 测试2-近似算法
+            try:
+                approx_densest = g.get_densest_subgraph_approx()
+                approx_stats = approx_densest.get_stats()
+                approx_density = approx_stats['density']
+                print(f"  2-近似算法结果:")
+                print(f"    节点数: {approx_stats['nodes']}")
+                print(f"    边数: {approx_stats['edges']}")
+                print(f"    密度: {approx_density:.6f}")
+            except Exception as e:
+                print(f"  2-近似算法出错: {str(e)}")
+            
+            # 对于小图，测试精确算法
+            if stats['nodes'] <= 1000:  # 只对小图运行精确算法
+                try:
+                    exact_densest = g.get_densest_subgraph_exact()
+                    exact_stats = exact_densest.get_stats()
+                    exact_density = exact_stats['density']
+                    print(f"  精确算法结果:")
+                    print(f"    节点数: {exact_stats['nodes']}")
+                    print(f"    边数: {exact_stats['edges']}")
+                    print(f"    密度: {exact_density:.6f}")
+                    
+                    # 计算近似比
+                    if exact_density > 0:
+                        approx_ratio = approx_density / exact_density
+                        print(f"    近似比: {approx_ratio:.4f}")
+                except Exception as e:
+                    print(f"  精确算法出错: {str(e)}")
+            else:
+                print("  图太大，跳过精确算法测试")
+            
             # 保存图到输出目录
             base_name = os.path.splitext(os.path.basename(data_file))[0]
             output_path = os.path.join(output_dir, f"{base_name}_output.txt")
@@ -83,6 +119,9 @@ def main():
             
         except Exception as e:
             print(f"  处理 {data_file} 时出错: {str(e)}\n")
+    
+    # 使用map函数处理所有数据文件，避免for循环
+    list(map(process_data_file, data_files))
     
     # 额外测试：创建一个简单的图并保存
     print("=== 创建测试图 ===")
@@ -96,6 +135,38 @@ def main():
     stats = test_graph.get_stats()
     print(f"节点数: {stats['nodes']}")
     print(f"边数: {stats['edges']}")
+    
+    # 测试最密子图算法
+    print("=== 测试图最密子图算法测试 ===")
+    
+    # 测试2-近似算法
+    try:
+        approx_densest = test_graph.get_densest_subgraph_approx()
+        approx_stats = approx_densest.get_stats()
+        approx_density = approx_stats['density']
+        print(f"2-近似算法结果:")
+        print(f"  节点数: {approx_stats['nodes']}")
+        print(f"  边数: {approx_stats['edges']}")
+        print(f"  密度: {approx_density:.6f}")
+    except Exception as e:
+        print(f"2-近似算法出错: {str(e)}")
+    
+    # 测试精确算法
+    try:
+        exact_densest = test_graph.get_densest_subgraph_exact()
+        exact_stats = exact_densest.get_stats()
+        exact_density = exact_stats['density']
+        print(f"精确算法结果:")
+        print(f"  节点数: {exact_stats['nodes']}")
+        print(f"  边数: {exact_stats['edges']}")
+        print(f"  密度: {exact_density:.6f}")
+        
+        # 计算近似比
+        if exact_density > 0:
+            approx_ratio = approx_density / exact_density
+            print(f"  近似比: {approx_ratio:.4f}")
+    except Exception as e:
+        print(f"精确算法出错: {str(e)}")
     
     # 保存测试图
     test_output = os.path.join(output_dir, "test_graph.txt")
