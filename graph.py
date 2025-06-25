@@ -5,6 +5,7 @@ Graph processing module using NetworkX as backend.
 import networkx as nx
 from typing import Optional, Union
 import os
+import numpy as np
 
 
 class Graph:
@@ -97,17 +98,26 @@ class Graph:
     
     def get_stats(self) -> dict:
         """
-        Get basic statistics of the graph.
+        获取图的基础统计信息。
         
         Returns:
-            Dictionary containing graph statistics
+            包含图统计信息的字典
         """
-        return {
+        stats = {
             'nodes': self.graph.number_of_nodes(),
             'edges': self.graph.number_of_edges(),
             'is_connected': nx.is_connected(self.graph),
-            'density': nx.density(self.graph)
+            'density': self.get_density(),
+            'average_degree': self.get_average_degree(),
+            'number_of_components': self.get_number_of_components(),
+            'largest_component_size': self.get_largest_component_size()
         }
+        
+        # 添加度统计信息
+        degree_stats = self.get_degree_statistics()
+        stats.update(degree_stats)
+        
+        return stats
     
     def get_networkx_graph(self) -> nx.Graph:
         """
@@ -117,3 +127,76 @@ class Graph:
             NetworkX Graph object
         """
         return self.graph 
+
+    def get_density(self) -> float:
+        """
+        计算图的密度。
+        密度 = 实际边数 / 最大可能边数
+        
+        Returns:
+            图的密度值（0到1之间）
+        """
+        return nx.density(self.graph) 
+
+    def get_average_degree(self) -> float:
+        """
+        计算图的平均度。
+        平均度 = 总度数 / 节点数 = 2 * 边数 / 节点数
+        
+        Returns:
+            图的平均度
+        """
+        if self.graph.number_of_nodes() == 0:
+            return 0.0
+        return 2 * self.graph.number_of_edges() / self.graph.number_of_nodes() 
+
+    def get_degree_statistics(self) -> dict:
+        """
+        计算度分布的统计信息。
+        
+        Returns:
+            包含度统计信息的字典
+        """
+        if self.graph.number_of_nodes() == 0:
+            return {
+                'min_degree': 0,
+                'max_degree': 0,
+                'mean_degree': 0.0,
+                'std_degree': 0.0,
+                'median_degree': 0.0
+            }
+        
+        # 使用 NetworkX 的度序列函数，避免使用 for 循环
+        degrees = [d for n, d in self.graph.degree()]
+        degrees_array = np.array(degrees)
+        
+        return {
+            'min_degree': int(np.min(degrees_array)),
+            'max_degree': int(np.max(degrees_array)),
+            'mean_degree': float(np.mean(degrees_array)),
+            'std_degree': float(np.std(degrees_array)),
+            'median_degree': float(np.median(degrees_array))
+        } 
+
+    def get_number_of_components(self) -> int:
+        """
+        计算图的连通分量数量。
+        
+        Returns:
+            连通分量的数量
+        """
+        return nx.number_connected_components(self.graph) 
+
+    def get_largest_component_size(self) -> int:
+        """
+        计算最大连通分量的大小（节点数）。
+        
+        Returns:
+            最大连通分量的节点数
+        """
+        if self.graph.number_of_nodes() == 0:
+            return 0
+        
+        # 使用 NetworkX 的连通分量函数
+        largest_cc = max(nx.connected_components(self.graph), key=len)
+        return len(largest_cc) 

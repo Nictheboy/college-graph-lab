@@ -39,6 +39,14 @@ def main():
             print(f"  边数: {stats['edges']}")
             print(f"  是否连通: {stats['is_connected']}")
             print(f"  密度: {stats['density']:.6f}")
+            print(f"  平均度: {stats['average_degree']:.2f}")
+            print(f"  连通分量数: {stats['number_of_components']}")
+            print(f"  最大连通分量大小: {stats['largest_component_size']}")
+            print(f"  最小度: {stats['min_degree']}")
+            print(f"  最大度: {stats['max_degree']}")
+            print(f"  度的均值: {stats['mean_degree']:.2f}")
+            print(f"  度的标准差: {stats['std_degree']:.2f}")
+            print(f"  度的中位数: {stats['median_degree']:.2f}")
             
             # 保存图到输出目录
             base_name = os.path.splitext(os.path.basename(data_file))[0]
