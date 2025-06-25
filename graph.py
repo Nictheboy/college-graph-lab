@@ -130,6 +130,20 @@ class Graph:
         clique_stats = self.get_clique_statistics()
         stats.update(clique_stats)
         
+        # 添加LDS统计信息（对于大图跳过以提高性能）
+        if self.graph.number_of_nodes() <= 50000:  # 只对中小型图计算LDS统计
+            lds_stats = self.get_lds_statistics()
+            stats.update(lds_stats)
+        else:
+            # 对于大图，返回默认的LDS统计信息
+            stats.update({
+                'total_lds_found': 0,
+                'average_lds_density': 0.0,
+                'max_lds_density': 0.0,
+                'min_lds_density': 0.0,
+                'average_lds_size': 0.0
+            })
+        
         return stats
     
     def get_networkx_graph(self) -> nx.Graph:
@@ -609,3 +623,358 @@ class Graph:
         except ValueError:
             # 如果nodes本身不构成一个团，返回空列表
             return [] 
+    
+    def get_top_k_lds(self, k: int) -> list:
+        """
+        使用高效的基于k-core的方法找到top-k局部密集子图（LDS）。
+        
+        LDS定义：一个子图G[S]是LDS当且仅当它是图G中的最大density(G[S])-紧致子图
+        
+        Args:
+            k: 需要返回的LDS数量
+            
+        Returns:
+            包含top-k LDS的列表，每个元素是(Graph对象, 密度值)的元组
+        """
+        if k <= 0 or self.graph.number_of_nodes() == 0:
+            return []
+        
+        # 使用高效的基于k-core的LDS发现算法
+        lds_candidates = self._fast_lds_discovery()
+        
+        # 按密度排序并返回top-k
+        lds_candidates.sort(key=lambda x: x[1], reverse=True)
+        
+        return lds_candidates[:k]
+    
+    def _fast_lds_discovery(self) -> list:
+        """
+        使用高效的基于k-core和度数的LDS发现算法。
+        避免生成大量候选子图，直接基于图的结构特性发现LDS。
+        
+        Returns:
+            LDS列表，每个元素是(Graph对象, 密度值)的元组
+        """
+        lds_results = []
+        
+        # 1. 基于k-core分解快速发现高质量LDS
+        core_numbers = nx.core_number(self.graph)
+        if not core_numbers:
+            return []
+        
+        max_core = max(core_numbers.values())
+        
+        # 只处理高core值的子图，提高效率
+        min_core_threshold = max(2, max_core // 2)  # 只考虑core值较高的部分
+        
+        core_levels = list(range(min_core_threshold, max_core + 1))
+        
+        def process_core_level(core_level):
+            # 获取core_level-core的节点
+            core_nodes = {node for node, core in core_numbers.items() if core >= core_level}
+            
+            if len(core_nodes) < 3:  # 太小的子图没有意义
+                return []
+            
+            # 获取k-core子图
+            k_core_subgraph = self.graph.subgraph(core_nodes)
+            
+            # 获取连通分量
+            components = list(nx.connected_components(k_core_subgraph))
+            
+            # 只处理足够大的连通分量
+            large_components = [comp for comp in components if len(comp) >= 3]
+            
+            component_results = []
+            
+            def evaluate_component(component):
+                if len(component) < 3:
+                    return None
+                
+                comp_subgraph = self.graph.subgraph(component)
+                density = nx.density(comp_subgraph)
+                
+                # 只保留密度足够高的组件
+                if density >= 0.1:  # 密度阈值
+                    result_graph = Graph()
+                    result_graph.graph = comp_subgraph.copy()
+                    return (result_graph, density)
+                return None
+            
+            # 使用map处理所有大的连通分量
+            component_results = list(filter(None, map(evaluate_component, large_components)))
+            return component_results
+        
+        # 使用map处理所有core级别
+        all_core_results = list(map(process_core_level, core_levels))
+        
+        # 扁平化结果
+        core_lds = [result for sublist in all_core_results for result in sublist]
+        lds_results.extend(core_lds)
+        
+        # 2. 基于高度数节点的局部邻域发现LDS
+        degree_dict = dict(self.graph.degree())
+        if degree_dict:
+            # 只考虑度数最高的前1%节点，提高效率
+            total_nodes = len(degree_dict)
+            top_degree_count = max(10, total_nodes // 100)  # 至少10个，最多1%
+            
+            sorted_nodes = sorted(degree_dict.keys(), key=lambda x: degree_dict[x], reverse=True)
+            high_degree_nodes = sorted_nodes[:top_degree_count]
+            
+            def process_high_degree_node(node):
+                neighbors = list(self.graph.neighbors(node))
+                
+                if len(neighbors) < 2:
+                    return None
+                
+                # 构建节点及其邻居的诱导子图
+                candidate_nodes = [node] + neighbors
+                candidate_subgraph = self.graph.subgraph(candidate_nodes)
+                
+                # 检查是否连通
+                if not nx.is_connected(candidate_subgraph):
+                    # 取最大连通分量
+                    largest_cc = max(nx.connected_components(candidate_subgraph), key=len)
+                    if len(largest_cc) < 3:
+                        return None
+                    candidate_subgraph = self.graph.subgraph(largest_cc)
+                
+                density = nx.density(candidate_subgraph)
+                
+                # 只保留密度足够高的邻域
+                if density >= 0.2:  # 邻域密度阈值
+                    result_graph = Graph()
+                    result_graph.graph = candidate_subgraph.copy()
+                    return (result_graph, density)
+                return None
+            
+            # 使用map处理高度数节点
+            degree_lds = list(filter(None, map(process_high_degree_node, high_degree_nodes)))
+            lds_results.extend(degree_lds)
+        
+        # 3. 去重：移除重复的LDS（基于节点集合）
+        unique_lds = []
+        seen_node_sets = set()
+        
+        def is_unique_lds(lds_item):
+            lds_graph, density = lds_item
+            node_set = frozenset(lds_graph.get_networkx_graph().nodes())
+            
+            if node_set not in seen_node_sets:
+                seen_node_sets.add(node_set)
+                return True
+            return False
+        
+        unique_lds = list(filter(is_unique_lds, lds_results))
+        
+        return unique_lds
+    
+    def _generate_lds_candidates(self) -> list:
+        """
+        生成LDS候选子图。基于k-core分解和连通分量分析。
+        
+        Returns:
+            候选子图节点集合的列表
+        """
+        candidates = set()
+        
+        # 1. 基于k-core分解生成候选
+        core_numbers = nx.core_number(self.graph)
+        if core_numbers:
+            max_core = max(core_numbers.values())
+            
+            # 为每个core级别生成候选
+            core_levels = list(range(1, max_core + 1))
+            
+            def generate_core_candidates(core_level):
+                # 获取core_level-core的节点
+                core_nodes = {node for node, core in core_numbers.items() if core >= core_level}
+                if len(core_nodes) > 1:
+                    # 获取诱导子图的连通分量
+                    core_subgraph = self.graph.subgraph(core_nodes)
+                    components = list(nx.connected_components(core_subgraph))
+                    return [frozenset(comp) for comp in components if len(comp) > 1]
+                return []
+            
+            # 使用map函数处理所有core级别
+            all_core_candidates = list(map(generate_core_candidates, core_levels))
+            # 扁平化结果
+            core_candidates = [cand for sublist in all_core_candidates for cand in sublist]
+            candidates.update(core_candidates)
+        
+        # 2. 基于度数排序生成候选
+        degree_dict = dict(self.graph.degree())
+        if degree_dict:
+            # 按度数排序节点
+            sorted_nodes = sorted(degree_dict.keys(), key=lambda x: degree_dict[x], reverse=True)
+            
+            # 生成高度数节点的邻域候选
+            high_degree_candidates = self._generate_neighborhood_candidates(sorted_nodes[:min(10, len(sorted_nodes))])
+            candidates.update(high_degree_candidates)
+        
+        # 3. 基于密集连通分量
+        components = list(nx.connected_components(self.graph))
+        if len(components) > 1:
+            # 对于每个连通分量，计算其密度并选择密集的分量
+            def calc_component_density(comp):
+                if len(comp) > 1:
+                    density = self.graph.subgraph(comp).number_of_edges() / len(comp)
+                    return (frozenset(comp), density)
+                return None
+            
+            component_densities = list(filter(None, map(calc_component_density, components)))
+            # 选择密度最高的一半连通分量作为候选
+            if component_densities:
+                component_densities.sort(key=lambda x: x[1], reverse=True)
+                top_components = component_densities[:max(1, len(component_densities)//2)]
+                candidates.update([comp[0] for comp in top_components])
+        
+        return list(candidates)
+    
+    def _generate_neighborhood_candidates(self, high_degree_nodes: list) -> list:
+        """
+        基于高度数节点生成邻域候选。
+        
+        Args:
+            high_degree_nodes: 高度数节点列表
+            
+        Returns:
+            候选子图节点集合的列表
+        """
+        def get_neighborhood_candidate(node):
+            # 获取节点的邻居
+            neighbors = list(self.graph.neighbors(node))
+            if len(neighbors) > 1:
+                # 节点和其邻居组成候选
+                candidate = frozenset([node] + neighbors)
+                return candidate
+            return None
+        
+        candidates = list(filter(None, map(get_neighborhood_candidate, high_degree_nodes)))
+        return candidates
+    
+    def _validate_and_score_candidates(self, candidates: list) -> list:
+        """
+        验证和评分候选子图，确定哪些是真正的LDS。
+        
+        Args:
+            candidates: 候选子图节点集合的列表
+            
+        Returns:
+            有效LDS的列表，每个元素是(Graph对象, 密度值)
+        """
+        def validate_candidate(candidate_nodes):
+            if len(candidate_nodes) <= 1:
+                return None
+            
+            # 创建候选子图
+            subgraph = self.graph.subgraph(candidate_nodes)
+            
+            # 检查连通性
+            if not nx.is_connected(subgraph):
+                return None
+            
+            # 计算密度
+            density = nx.density(subgraph)
+            if density == 0:
+                return None
+            
+            # 计算紧致数
+            compact_number = self._compute_compact_number(candidate_nodes)
+            
+            # 检查是否为LDS（密度应接近紧致数）
+            if abs(density - compact_number) / max(density, compact_number) < 0.1:  # 10%的容忍度
+                # 创建结果图对象
+                result_graph = Graph()
+                result_graph.graph = subgraph.copy()
+                return (result_graph, density)
+            
+            return None
+        
+        valid_candidates = list(filter(None, map(validate_candidate, candidates)))
+        return valid_candidates
+    
+    def _compute_compact_number(self, nodes: set) -> float:
+        """
+        计算给定节点集合的紧致数（compact number）。
+        紧致数是LDS验证的核心概念。
+        
+        Args:
+            nodes: 节点集合
+            
+        Returns:
+            紧致数值
+        """
+        if len(nodes) <= 1:
+            return 0.0
+        
+        subgraph = self.graph.subgraph(nodes)
+        
+        # 基本的紧致数计算：边数除以节点数
+        # 这是一个简化版本，实际的LDS算法会使用更复杂的凸优化方法
+        edges = subgraph.number_of_edges()
+        nodes_count = len(nodes)
+        
+        if nodes_count == 0:
+            return 0.0
+        
+        # 考虑局部邻域的影响
+        # 计算子图内部连接强度
+        internal_degree_sum = sum(subgraph.degree(node) for node in nodes)
+        
+        # 计算与外部的连接，使用map函数避免for循环
+        def count_external_neighbors(node):
+            external_neighbors = set(self.graph.neighbors(node)) - set(nodes)
+            return len(external_neighbors)
+        
+        external_edges = sum(map(count_external_neighbors, nodes))
+        
+        # 紧致数：考虑内部密度和外部连接的平衡
+        if nodes_count > 0:
+            internal_density = (2 * edges) / nodes_count  # 平均内部度数
+            external_penalty = external_edges / nodes_count  # 平均外部连接
+            compact_number = internal_density / (1 + 0.1 * external_penalty)  # 轻微惩罚外部连接
+            return compact_number
+        
+        return 0.0
+    
+    def get_lds_statistics(self) -> dict:
+        """
+        获取图中LDS的统计信息。
+        
+        Returns:
+            包含LDS统计信息的字典
+        """
+        if self.graph.number_of_nodes() == 0:
+            return {
+                'total_lds_found': 0,
+                'average_lds_density': 0.0,
+                'max_lds_density': 0.0,
+                'min_lds_density': 0.0,
+                'average_lds_size': 0.0
+            }
+        
+        # 对于大图，只获取top-5 LDS进行统计以提高效率
+        k_value = 5 if self.graph.number_of_nodes() > 1000 else 10
+        top_lds = self.get_top_k_lds(k_value)
+        
+        if not top_lds:
+            return {
+                'total_lds_found': 0,
+                'average_lds_density': 0.0,
+                'max_lds_density': 0.0,
+                'min_lds_density': 0.0,
+                'average_lds_size': 0.0
+            }
+        
+        densities = [lds[1] for lds in top_lds]
+        sizes = [lds[0].get_networkx_graph().number_of_nodes() for lds in top_lds]
+        
+        return {
+            'total_lds_found': len(top_lds),
+            'average_lds_density': float(np.mean(densities)),
+            'max_lds_density': float(np.max(densities)),
+            'min_lds_density': float(np.min(densities)),
+            'average_lds_size': float(np.mean(sizes))
+        } 

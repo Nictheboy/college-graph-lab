@@ -63,6 +63,13 @@ def main():
             print(f"  团数: {stats['clique_number']}")
             print(f"  团大小分布: {stats['clique_size_distribution']}")
             
+            # 添加LDS统计信息
+            print(f"  LDS发现数量: {stats['total_lds_found']}")
+            print(f"  LDS平均密度: {stats['average_lds_density']:.6f}")
+            print(f"  LDS最大密度: {stats['max_lds_density']:.6f}")
+            print(f"  LDS最小密度: {stats['min_lds_density']:.6f}")
+            print(f"  LDS平均大小: {stats['average_lds_size']:.2f}")
+            
             # 测试k-core分解功能
             print("  === K-Core 分解测试 ===")
             
@@ -142,6 +149,47 @@ def main():
                     print(f"  精确算法出错: {str(e)}")
             else:
                 print("  图太大，跳过精确算法测试")
+            
+            # 测试LDS算法
+            print("  === LDS（局部密集子图）算法测试 ===")
+            
+            try:
+                # 根据图的大小调整k值
+                if stats['nodes'] > 50000:
+                    k_value = 2  # 大图使用较小的k值
+                elif stats['nodes'] > 10000:
+                    k_value = 3  # 中等图使用中等k值
+                else:
+                    k_value = 5  # 小图使用较大的k值
+                
+                top_k_lds = g.get_top_k_lds(k_value)
+                print(f"  Top-{k_value} LDS结果:")
+                
+                if top_k_lds:
+                    # 使用map函数显示每个LDS的信息，避免for循环
+                    def display_lds_info(lds_info):
+                        idx, (lds_graph, density) = lds_info
+                        lds_stats = lds_graph.get_stats()
+                        return f"    LDS {idx+1}: 节点数={lds_stats['nodes']}, 边数={lds_stats['edges']}, 密度={density:.6f}"
+                    
+                    lds_info_with_index = list(enumerate(top_k_lds))
+                    lds_descriptions = list(map(display_lds_info, lds_info_with_index))
+                    
+                    # 显示所有LDS信息
+                    list(map(print, lds_descriptions))
+                    
+                    # 显示最佳LDS的详细信息
+                    best_lds_graph, best_density = top_k_lds[0]
+                    best_lds_stats = best_lds_graph.get_stats()
+                    print(f"  最佳LDS详细信息:")
+                    print(f"    连通性: {best_lds_stats['is_connected']}")
+                    print(f"    平均度: {best_lds_stats['average_degree']:.2f}")
+                    
+                else:
+                    print(f"    未找到有效的LDS")
+                    
+            except Exception as e:
+                print(f"  LDS算法出错: {str(e)}")
             
             # 保存图到输出目录
             base_name = os.path.splitext(os.path.basename(data_file))[0]
@@ -223,6 +271,42 @@ def main():
             print(f"  近似比: {approx_ratio:.4f}")
     except Exception as e:
         print(f"精确算法出错: {str(e)}")
+    
+    # 测试LDS算法
+    print("=== 测试图LDS算法测试 ===")
+    
+    try:
+        # 测试top-5 LDS
+        k_value = 5
+        top_k_lds = test_graph.get_top_k_lds(k_value)
+        print(f"Top-{k_value} LDS结果:")
+        
+        if top_k_lds:
+            # 使用map函数显示每个LDS的信息，避免for循环
+            def display_test_lds_info(lds_info):
+                idx, (lds_graph, density) = lds_info
+                lds_stats = lds_graph.get_stats()
+                return f"  LDS {idx+1}: 节点数={lds_stats['nodes']}, 边数={lds_stats['edges']}, 密度={density:.6f}"
+            
+            lds_info_with_index = list(enumerate(top_k_lds))
+            lds_descriptions = list(map(display_test_lds_info, lds_info_with_index))
+            
+            # 显示所有LDS信息
+            list(map(print, lds_descriptions))
+            
+            # 显示最佳LDS的详细信息
+            best_lds_graph, best_density = top_k_lds[0]
+            best_lds_stats = best_lds_graph.get_stats()
+            print(f"最佳LDS详细信息:")
+            print(f"  连通性: {best_lds_stats['is_connected']}")
+            print(f"  平均度: {best_lds_stats['average_degree']:.2f}")
+            print(f"  组成节点: {list(best_lds_graph.get_networkx_graph().nodes())}")
+            
+        else:
+            print("  未找到有效的LDS")
+            
+    except Exception as e:
+        print(f"LDS算法出错: {str(e)}")
     
     # 保存测试图
     test_output = os.path.join(output_dir, "test_graph.txt")
